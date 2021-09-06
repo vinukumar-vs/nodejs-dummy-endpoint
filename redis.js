@@ -1,5 +1,6 @@
 const redis = require("redis");
 var express    = require('express');
+var log    = require('loglevel');
 var app        = express();
 
 /**
@@ -19,17 +20,19 @@ let config = {
     "database": {
             "host": "localhost",
             "port": 6379,
-            "password": "",
             "db": 0
         },
     "keys": ["category:6"],
-    "loop": 10
+    "loop": 10,
+    "logLevel": "info" 
 }
 
 const client = redis.createClient(config.database.port, config.database.host, config.database);
 client.on("error", function(error) {
-    console.error("Redis connection failed", error);
+    log.error("Redis connection failed", error);
 });
+
+log.setLevel(config.logLevel);
 var port = process.env.PORT || config.port;
 var loopCount = 0;
 
@@ -39,13 +42,15 @@ app.post('/dummy', function(req, res) {
 
 
 async function runCommand(keyName) {
-    // console.log('Running command HGETALL: ', config.key)
     config.key = keyName; //config.keys[getKeyIndex()];
     var result = await client.hgetall(config.key, function(err, res) {
-        if(res)
-            console.log(`Key:"${config.key}" Result: `, JSON.stringify(res));
-        else 
-            console.error(`Key: ${config.key} Result: No data`)
+        if(res) {
+            log.debug(`Key:"${config.key}" Result: `, JSON.stringify(res));
+            log.info(`Loop: ${loopCount} Key:"${config.key}" Result: success`);
+        }
+        else {
+            log.error(`Loop: ${loopCount} Key: ${config.key} Result: No data`)
+        }
 
         loopCount++;
         if(loopCount < config.loop) {
@@ -55,12 +60,13 @@ async function runCommand(keyName) {
             loadNextKey();
         }
     });
-    // console.log(result);
+    // log.info(result);
  }
 
 function loadNextKey() {
     var keyName = getKeyIndex();
     if(keyName) {
+        log.info(`Get data for key: ${keyName}`);
         runCommand(keyName);
     }
 }
@@ -75,7 +81,7 @@ function getKeyIndex() {
 
 app.listen(port); 
 
-console.log('server is running on port ' + port);
+log.info('server is running on port ' + port);
 
  // Now call above function after 2 seconds
 // setTimeout(redisCommand, 1000);

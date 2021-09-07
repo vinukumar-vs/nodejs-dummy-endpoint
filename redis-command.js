@@ -4,7 +4,6 @@ var log    = require('loglevel');
 var app        = express();
 
 var redisDB = require('./database/redis')
-var nconf = require('nconf');
 
 /**
  * Sample redis database config object
@@ -18,7 +17,7 @@ var nconf = require('nconf');
 //     "db": 11
 // }
 
-let config = {
+var config = {
     "port": 4050,
     "database": {
         "host": "127.0.0.1",
@@ -30,8 +29,8 @@ let config = {
     "loop": 10,
     "logLevel": "info" 
 }
-
-// nconf.set('redis', {'host': '127.0.0.1', 'port': '6379', 'database': 0, 'password': ""})
+const port = process.env.PORT || config.port;
+var loopCount = 0;
 
 // Direct connection to redis
 // const client = redis.createClient(config.database.port, config.database.host, config.database);
@@ -39,20 +38,21 @@ let config = {
 //     log.error("Redis connection failed", error);
 // });
 
-log.setLevel(config.logLevel);
-var port = process.env.PORT || config.port;
-var loopCount = 0;
-
 app.post('/dummy', function(req, res) {
     res.json({ message: 'success' });   
 });
 
+async function init () {
+    log.setLevel(config.logLevel);
+    await redisDB.init();
+    loadNextKey();
+}
 
 async function runCommand(keyName) {
     try {
         config.key = keyName; //config.keys[getKeyIndex()];
         var result = await redisDB.getObject(config.key);
-        log.info(`Key:${config.key}, Result: ${JSON.stringify(result)}`);
+        log.debug(`Key:${config.key}, Result: ${JSON.stringify(result)}`);
         log.info(`Loop: ${loopCount} Key:"${config.key}" Result: success`);
         loopCount++;
         if(loopCount < config.loop) {
@@ -87,11 +87,12 @@ async function runCommand(keyName) {
  }
 
 async function loadNextKey() {
-    await redisDB.init();
     var keyName = getKeyIndex();
     if(keyName) {
-        log.info(`Get data for key: ${keyName}`);
+        log.warn(`Get data for key: ${keyName}`);
         runCommand(keyName);
+    } else {
+        log.warn(`Done.`)
     }
 }
 
@@ -107,6 +108,4 @@ app.listen(port);
 
 log.info('server is running on port ' + port);
 
- // Now call above function after 2 seconds
-// setTimeout(redisCommand, 1000);
-loadNextKey();
+init();
